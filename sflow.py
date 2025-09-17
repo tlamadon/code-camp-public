@@ -24,13 +24,13 @@ async def flow_sleepit():
 
     i=1
     task1 = sf.Task(
-      cmd    = f"""python toto.py""",
+      cmd    = f"""conda activate camp && python scripts/pt_uroot.py > test_{i}.txt""",
       outputs = f"test_{i}.txt",
       name   = f"solve-{i}")
 
     i=2
     task2 = sf.Task(
-      cmd    = f"""python -c "import time; time.sleep(5); open('test_{i}.txt','w').write('5');" """,
+      cmd    = f"""conda activate camp && python scripts/pt_uroot.py > test_{i}.txt""",
       outputs = f"test_{i}.txt",
       name   = f"solve-{i}")
 

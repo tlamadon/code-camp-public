@@ -1,0 +1,3 @@
+nt: 6           # Number of time periods (T)
+ni: 800          # Number of individuals (N)
+rep: 10            # Number of simulation repetitions

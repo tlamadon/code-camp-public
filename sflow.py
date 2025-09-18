@@ -16,15 +16,6 @@ sf.init({
     'debug':True
 })
 
-# example of a simple step that combines outcomes
-def step2_combine_file():
-    with open('test_1.txt') as f:
-        a = int(f.readlines()[0])
-    with open('test_2.txt') as f:
-        b = int(f.readlines()[0])
-    with open('final.txt','w') as f:
-        f.write("{}\n".format(a+b))
-
 # define a flow called sleepit
 async def flow_mc():
 
@@ -37,7 +28,35 @@ async def flow_mc():
             shell = True,
             outputs = f"res_{i}.json",
             name   = f"solve-{i}")
-        for i in range(5)
+        for i in range(10)
+    ]
+
+    # we make sure all the tasks are executed
+    await sf.bag(*tasks)
+
+    # we combine all outputs into one json
+    combined = []
+    for t in tasks:
+        with open(t.get_outputs()[0]) as f:
+            combined.extend(json.load(f))
+
+    with open("res.json", "w") as f:
+        json.dump(combined, f, indent=2)
+
+
+# define a flow called sleepit
+async def flow_mc_theta():
+
+    # prefix = "conda run -n camp "  # if you want to use conda environment
+    prefix = ""
+
+    tasks = [
+        sf.Task(
+            cmd    = [f"{prefix}python scripts/pt_uroot.py -o res_{i}.json -i {i}"],
+            shell = True,
+            outputs = f"res_{i}.json",
+            name   = f"solve-{i}")
+        for i in range(10)
     ]
 
     # we make sure all the tasks are executed

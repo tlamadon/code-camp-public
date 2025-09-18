@@ -2,7 +2,21 @@ import torch
 import torch.nn as nn
 import numpy as np
 from typing import Tuple, Dict
+import argparse
+import os
+import yaml
+from pydantic import BaseModel
+import json
 
+class SimConfig(BaseModel):
+    var_e: float = 0.5      # Variance of transitory component (e_it)
+    var_u: float = 0.3      # Variance of permanent shock (u_it)
+    var_p1: float = 0.8     # Variance of initial permanent component (p_i1)
+    rho: float = 1.0        # Persistence parameter (rho), usually 1.0 for unit root
+    nt: int = 10            # Number of time periods (T)
+    ni: int = 1000          # Number of individuals (N)
+    rep: int = 3            # Number of simulation repetitions
+    seed: int = 42          # Random seed for reproducibility
 
 class PermanentTransitorySimulator:
     """
@@ -24,7 +38,7 @@ class PermanentTransitorySimulator:
         self.var_p1 = var_p1
         self.rho = rho
 
-    def simulate(self, N: int, T: int, seed: int = None) -> torch.Tensor:
+    def simulate(self, N: int, T: int, seed: int|None = None) -> torch.Tensor:
         """
         Simulate earnings data for N individuals over T periods
 
@@ -184,6 +198,24 @@ def estimate_model(y_data: torch.Tensor, lr: float = 0.01, max_iter: int = 1000)
 if __name__ == "__main__":
     # Example usage
 
+    parser = argparse.ArgumentParser(description="Permanent-Transitory Model Simulation and Estimation")
+    parser.add_argument('-o', '--output', type=str, required=True, help='Output file to save results')
+    parser.add_argument('-c', '--config', type=str, required=False, help='YAML config file for simulation parameters')
+    parser.add_argument('-i', '--index', type=int, required=False, help='Index for random seed variation', default=0)
+    args = parser.parse_args()
+
+    # Add pydantic and yaml imports
+    config = SimConfig()
+    if args.config:
+        with open(args.config, 'r') as f:
+            yaml_data = yaml.safe_load(f)
+        config = SimConfig(**yaml_data)
+
+    # Ensure output directory exists
+    output_dir = os.path.dirname(args.output)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+
     # True parameters
     true_params = {
         'var_e': 0.5,
@@ -192,14 +224,29 @@ if __name__ == "__main__":
     }
 
     # Simulate data
-    simulator = PermanentTransitorySimulator(**true_params)
-    y_sim = simulator.simulate(N=1000, T=10, seed=42)
+    simulator = PermanentTransitorySimulator(
+        rho=1.0,
+        var_e = config.var_e,
+        var_u = config.var_u,
+        var_p1 = config.var_p1
+        ) 
 
-    print("True parameters:", true_params)
-    print("Simulated data shape:", y_sim.shape)
+    results = []
+    reps = config.rep
 
-    # Estimate parameters
-    estimates, loss_hist = estimate_model(y_sim, lr=0.02, max_iter=2000)
+    for i in range(reps):
+        y_sim = simulator.simulate(
+            N=config.ni, 
+            T=config.nt, 
+            seed= config.seed + i + args.index*config.rep)
+        estimates, loss_hist = estimate_model(y_sim, lr=0.02, max_iter=2000)
 
-    print("\nEstimated parameters:", estimates)
-    print(f"Final loss: {loss_hist[-1]:.6f}")
+        print("\nEstimated parameters:", estimates)
+        results.append({
+            'rep': i + args.index*config.rep,
+            'estimates': estimates,
+            'final_loss': loss_hist[-1]
+        })
+
+    with open(args.output, "w") as f:
+        json.dump(results, f, indent=2)

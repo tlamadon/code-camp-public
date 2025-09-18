@@ -1,9 +1,15 @@
 import scriptflow as sf
+import json
 
 # set main options
 sf.init({
+    # "executors":{
+    #     "hpc": {
+    #         "maxsize" : 5
+    #     } 
+    # },
     "executors":{
-        "hpc": {
+        "local": {
             "maxsize" : 5
         } 
     },
@@ -20,27 +26,28 @@ def step2_combine_file():
         f.write("{}\n".format(a+b))
 
 # define a flow called sleepit
-async def flow_sleepit():
+async def flow_mc():
 
-    i=1
-    task1 = sf.Task(
-      cmd    = [f"conda run -n camp python scripts/pt_uroot.py > test_{i}.txt"],
-      shell = True,
-      outputs = f"test_{i}.txt",
-      name   = f"solve-{i}")
+    # prefix = "conda run -n camp "  # if you want to use conda environment
+    prefix = ""
 
-    i=2
-    task2 = sf.Task(
-      cmd    = [f"conda run -n camp python scripts/pt_uroot.py > test_{i}.txt"],
-      shell = True,
-      outputs = f"test_{i}.txt",
-      name   = f"solve-{i}")
+    tasks = [
+        sf.Task(
+            cmd    = [f"{prefix}python scripts/pt_uroot.py -o res_{i}.json -i {i}"],
+            shell = True,
+            outputs = f"res_{i}.json",
+            name   = f"solve-{i}")
+        for i in range(5)
+    ]
 
-    await sf.bag(task1,task2)
+    # we make sure all the tasks are executed
+    await sf.bag(*tasks)
 
-    task_final = sf.Task(
-      cmd = "python -c 'import sflow; sflow.step2_combine_file()'",
-      outputs = f"final.txt",
-      inputs = [*task1.get_outputs(),*task2.get_outputs()])
+    # we combine all outputs into one json
+    combined = []
+    for t in tasks:
+        with open(t.get_outputs()[0]) as f:
+            combined.extend(json.load(f))
 
-    await task_final
+    with open("res.json", "w") as f:
+        json.dump(combined, f, indent=2)
